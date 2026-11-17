@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gym Tracker</title>
+    
+    <!-- iOS PWA настройки -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=Gym&background=7e22ce&color=fff&size=192">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Иконки Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        body {
+            background-color: #090514; /* Глубокий черный с оттенком фиолетового */
+            color: #e2d8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            padding-top: var(--safe-top);
+        }
+        
+        /* Эффект стекла */
+        .glass {
+            background: rgba(30, 20, 50, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(147, 51, 234, 0.15);
+        }
+        
+        .glass-active {
+            background: linear-gradient(135deg, #7e22ce 0%, #4c1d95 100%);
+            border: 1px solid #a855f7;
+            box-shadow: 0 4px 20px rgba(126, 34, 206, 0.3);
+            color: white;
+        }
+
+        .glass-card {
+            background: rgba(20, 15, 35, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(147, 51, 234, 0.1);
+            transition: all 0.2s ease;
+        }
+        
+        .glass-card:active {
+            transform: scale(0.98);
+            background: rgba(30, 20, 50, 0.8);
+        }
+
+        .completed {
+            opacity: 0.5;
+            border-color: #22c55e !important;
+        }
+
+        /* Анимация всплывающего окна (Bottom Sheet) */
+        .sheet-overlay {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .sheet-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .sheet {
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+            border-top: 1px solid rgba(147, 51, 234, 0.3);
+            box-shadow: 0 -10px 40px rgba(76, 29, 149, 0.4);
+        }
+        .sheet.open {
+            transform: translateY(0);
+        }
+
+        /* Скрываем скроллбар, но оставляем прокрутку */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="min-h-screen pb-24 relative">
+
+    <!-- Шапка -->
+    <header class="px-6 pt-6 pb-4">
+        <h1 class="text-3xl font-bold text-white tracking-tight">Тренировки</h1>
+        <p class="text-purple-400 text-sm mt-1">Программа на массу (14 лет)</p>
+    </header>
+
+    <!-- Выбор дня -->
+    <div class="px-6 mb-6 flex space-x-3 overflow-x-auto pb-2">
+        <button onclick="setDay('Понедельник')" id="btn-Понедельник" class="glass-active px-5 py-2.5 rounded-2xl font-semibold text-sm transition-all flex-shrink-0">
+            ПН (Спина)
+        </button>
+        <button onclick="setDay('Среда')" id="btn-Среда" class="glass px-5 py-2.5 rounded-2xl font-semibold text-sm transition-all flex-shrink-0 text-purple-300">
+            СР (Грудь)
+        </button>
+        <button onclick="setDay('Суббота')" id="btn-Суббота" class="glass px-5 py-2.5 rounded-2xl font-semibold text-sm transition-all flex-shrink-0 text-purple-300">
+            СБ (Ноги)
+        </button>
+    </div>
+
+    <!-- Список упражнений -->
+    <div class="px-6 space-y-4" id="exercise-list">
+        <!-- Генерируется через JS -->
+    </div>
+
+    <!-- Всплывающее окно (Bottom Sheet) -->
+    <div id="sheet-overlay" class="sheet-overlay fixed inset-0 z-40" onclick="closeSheet()"></div>
+    <div id="bottom-sheet" class="sheet fixed bottom-0 left-0 right-0 glass rounded-t-[2.5rem] p-6 z-50 max-h-[85vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-purple-900/50 rounded-full mx-auto mb-6"></div>
+        
+        <div class="flex justify-between items-start mb-6">
+            <h2 id="sheet-title" class="text-2xl font-bold text-white leading-tight pr-4">Название</h2>
+            <button onclick="closeSheet()" class="p-2 bg-purple-900/30 rounded-full text-purple-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div class="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
+                <div class="flex items-center text-purple-400 mb-1">
+                    <i data-lucide="dumbbell" class="w-4 h-4 mr-2"></i>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Где делать (Тренажер)</span>
+                </div>
+                <p id="sheet-machine" class="text-white font-medium"></p>
+            </div>
+
+            <div class="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
+                <div class="flex items-center text-purple-400 mb-1">
+                    <i data-lucide="info" class="w-4 h-4 mr-2"></i>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Как делать</span>
+                </div>
+                <p id="sheet-desc" class="text-gray-300 text-sm leading-relaxed"></p>
+            </div>
+            
+            <div class="bg-black/40 rounded-2xl p-4 border border-purple-500/20">
+                <div class="flex items-center text-purple-400 mb-1">
+                    <i data-lucide="flame" class="w-4 h-4 mr-2"></i>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Важное правило</span>
+                </div>
+                <p id="sheet-tip" class="text-gray-300 text-sm leading-relaxed"></p>
+            </div>
+        </div>
+
+        <button onclick="toggleCompleteCurrent()" id="btn-complete" class="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-purple-900/50">
+            Отметить как выполненное
+        </button>
+        <div class="h-[env(safe-area-inset-bottom)] mt-4"></div>
+    </div>
+
+    <script>
+        // База данных тренировок (8 упражнений на каждый день)
+        const workouts = {
+            'Понедельник': [
+                { id: 'm1', name: 'Подтягивания (Гравитрон)', machine: 'Гравитрон (тренажер с платформой)', desc: '3 подхода по 8-10 раз. Выпрямляйте руки в нижней точке, тянитесь грудью вверх.', tip: 'Если нет гравитрона, делайте тягу верхнего блока к груди широким хватом.' },
+                { id: 'm2', name: 'Тяга горизонтального блока', machine: 'Блочный тренажер с V-рукоятью', desc: '3 подхода по 10-12 раз. Тяните рукоять к животу, не отклоняйте спину назад.', tip: 'В конечной точке максимально сводите лопатки вместе.' },
+                { id: 'm3', name: 'Тяга гантели в наклоне', machine: 'Скамья, гантели', desc: '3 подхода по 10 раз на каждую руку. Обопритесь коленом и рукой на скамью.', tip: 'Тяните гантель к поясу, а не к груди, чтобы работала спина, а не рука.' },
+                { id: 'm4', name: 'Сгибание рук с гантелями', machine: 'Гантели (стоя)', desc: '3 подхода по 12 раз. Локти прижаты к корпусу.', tip: 'Не раскачивайтесь. Поднимайте быстро, опускайте медленно.' },
+                { id: 'm5', name: 'Сгибание рук на нижнем блоке', machine: 'Блочный тренажер (прямая рукоять)', desc: '3 подхода по 12-15 раз. Держите спину ровно.', tip: 'Отлично "добивает" бицепс после гантелей.' },
+                { id: 'm6', name: 'Пулловер с гантелью', machine: 'Скамья, одна гантель', desc: '3 подхода по 12 раз. Лягте поперек скамьи, опускайте гантель за голову на полусогнутых руках.', tip: 'Растягивает широчайшие мышцы и грудную клетку.' },
+                { id: 'm7', name: 'Тяга штанги в наклоне', machine: 'Легкая штанга', desc: '3 подхода по 10 раз. Наклон корпуса 45 градусов.', tip: 'Держите спину идеально прямой. Вес должен быть комфортным.' },
+                { id: 'm8', name: 'Гиперэкстензия', machine: 'Скамья для гиперэкстензии', desc: '3 подхода по 12-15 раз без дополнительного веса.', tip: 'Не переразгибайте поясницу назад в верхней точке, поднимайтесь до прямой линии.' }
+            ],
+            'Среда': [
+                { id: 'w1', name: 'Жим гантелей (наклон 30°)', machine: 'Наклонная скамья, гантели', desc: '3 подхода по 10-12 раз. Жмите гантели вверх по дуге, сводя их вместе.', tip: 'Гантели лучше штанги для новичков, так как развивают координацию.' },
+                { id: 'w2', name: 'Сведение в "Бабочке"', machine: 'Тренажер Pec-Deck (Бабочка)', desc: '3 подхода по 12-15 раз. Локти чуть согнуты.', tip: 'Представьте, что обнимаете большое дерево.' },
+                { id: 'w3', name: 'Отжимания на брусьях', machine: 'Гравитрон или брусья', desc: '3 подхода по 10 раз. Немного наклоните корпус вперед.', tip: 'Если тяжело, используйте гравитрон для помощи.' },
+                { id: 'w4', name: 'Жим гантелей сидя', machine: 'Скамья со спинкой (вертикально)', desc: '3 подхода по 10-12 раз. Жим вверх над головой.', tip: 'Не опускайте гантели слишком низко, угла 90 градусов в локтях достаточно.' },
+                { id: 'w5', name: 'Махи гантелями в стороны', machine: 'Легкие гантели (стоя)', desc: '3 подхода по 12-15 раз. Поднимайте руки через стороны до уровня плеч.', tip: 'Локти должны смотреть вверх, не забрасывайте вес спиной.' },
+                { id: 'w6', name: 'Махи перед собой', machine: 'Легкие гантели', desc: '3 подхода по 12 раз. Поочередный подъем рук перед собой.', tip: 'Не раскачивайтесь корпусом.' },
+                { id: 'w7', name: 'Разгибание на трицепс (блок)', machine: 'Верхний блок, канатная рукоять', desc: '3 подхода по 12-15 раз. Разводите концы каната в самом низу.', tip: 'Локти прижаты к бокам и не двигаются вперед-назад.' },
+                { id: 'w8', name: 'Французский жим с гантелью', machine: 'Скамья (сидя), одна гантель', desc: '3 подхода по 12 раз. Опускайте гантель за голову двумя руками.', tip: 'Держите локти близко к голове.' }
+            ],
+            'Суббота': [
+                { id: 's1', name: 'Жим ногами', machine: 'Тренажер для жима ногами', desc: '3 подхода по 10-12 раз. Ставьте ноги по центру платформы.', tip: 'Никогда не выпрямляйте колени до "щелчка", оставляйте их чуть согнутыми!' },
+                { id: 's2', name: 'Выпады на месте', machine: 'Собственный вес или легкие гантели', desc: '3 подхода по 10 раз на каждую ногу.', tip: 'Колено передней ноги не должно выходить за носок.' },
+                { id: 's3', name: 'Сгибание ног (задняя поверхность)', machine: 'Тренажер сидя или лежа', desc: '3 подхода по 12-15 раз.', tip: 'Не отрывайте таз от скамьи тренажера.' },
+                { id: 's4', name: 'Разгибание ног (квадрицепс)', machine: 'Тренажер для разгибаний', desc: '3 подхода по 12-15 раз.', tip: 'Задержите вес на 1 секунду в верхней точке.' },
+                { id: 's5', name: 'Подъем на носки', machine: 'Тренажер Смита или ступенька с гантелью', desc: '3 подхода по 15-20 раз.', tip: 'Делайте в полную амплитуду (хорошо растягивайте икры внизу).' },
+                { id: 's6', name: 'Скручивания на пресс', machine: 'Коврик', desc: '3 подхода по 15-20 раз. Поясница прижата к полу.', tip: 'Отрывайте только лопатки, не садитесь полностью.' },
+                { id: 's7', name: 'Подъем ног в висе', machine: 'Турник или упоры', desc: '3 подхода по 12-15 раз.', tip: 'Слегка сгибайте колени, не раскачивайтесь.' },
+                { id: 's8', name: 'Планка', machine: 'Коврик', desc: '3 подхода по 30-60 секунд.', tip: 'Тело должно быть прямой линией, не прогибайте поясницу.' }
+            ]
+        };
+
+        let currentDay = 'Понедельник';
+        let currentExerciseIndex = 0;
+        // Загрузка сохраненного прогресса
+        let completed = JSON.parse(localStorage.getItem('gymProgress')) || [];
+
+        function setDay(day) {
+            currentDay = day;
+            
+            // Обновляем стили кнопок
+            ['Понедельник', 'Среда', 'Суббота'].forEach(d => {
+                const btn = document.getElementById('btn-' + d);
+                if (d === day) {
+                    btn.className = 'glass-active px-5 py-2.5 rounded-2xl font-semibold text-sm transition-all flex-shrink-0';
+                } else {
+                    btn.className = 'glass px-5 py-2.5 rounded-2xl font-semibold text-sm transition-all flex-shrink-0 text-purple-300';
+                }
+            });
+            
+            renderExercises();
+        }
+
+        function renderExercises() {
+            const list = document.getElementById('exercise-list');
+            list.innerHTML = '';
+            
+            workouts[currentDay].forEach((ex, index) => {
+                const isCompleted = completed.includes(ex.id);
+                
+                list.innerHTML += `
+                    <div onclick="openSheet(${index})" class="glass-card rounded-2xl p-4 flex items-center justify-between cursor-pointer ${isCompleted ? 'completed' : ''}">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-xl bg-purple-900/40 flex items-center justify-center border border-purple-500/30">
+                                <span class="text-purple-300 font-bold text-lg">${index + 1}</span>
+                            </div>
+                            <div>
+                                <h3 class="text-white font-semibold text-base">${ex.name}</h3>
+                                <p class="text-purple-400 text-xs mt-1 truncate max-w-[200px]">${ex.machine}</p>
+                            </div>
+                        </div>
+                        <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center ${isCompleted ? 'border-green-500 bg-green-500/20 text-green-500' : 'border-purple-500/50 text-transparent'}">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            lucide.createIcons();
+        }
+
+        function openSheet(index) {
+            currentExerciseIndex = index;
+            const ex = workouts[currentDay][index];
+            const isCompleted = completed.includes(ex.id);
+            
+            document.getElementById('sheet-title').innerText = ex.name;
+            document.getElementById('sheet-machine').innerText = ex.machine;
+            document.getElementById('sheet-desc').innerText = ex.desc;
+            document.getElementById('sheet-tip').innerText = ex.tip;
+            
+            const btn = document.getElementById('btn-complete');
+            if (isCompleted) {
+                btn.innerText = 'Отменить выполнение';
+                btn.className = 'w-full mt-6 bg-gray-700/50 hover:bg-gray-700 text-white font-bold py-4 rounded-2xl transition-colors';
+            } else {
+                btn.innerText = 'Отметить как выполненное';
+                btn.className = 'w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-purple-900/50';
+            }
+
+            document.getElementById('sheet-overlay').classList.add('open');
+            document.getElementById('bottom-sheet').classList.add('open');
+        }
+
+        function closeSheet() {
+            document.getElementById('sheet-overlay').classList.remove('open');
+            document.getElementById('bottom-sheet').classList.remove('open');
+        }
+
+        function toggleCompleteCurrent() {
+            const ex = workouts[currentDay][currentExerciseIndex];
+            
+            if (completed.includes(ex.id)) {
+                completed = completed.filter(id => id !== ex.id);
+            } else {
+                completed.push(ex.id);
+            }
+            
+            localStorage.setItem('gymProgress', JSON.stringify(completed));
+            closeSheet();
+            setTimeout(renderExercises, 300); // Обновляем список после закрытия шторки
+        }
+
+        // Инициализация
+        setDay('Понедельник');
+    </script>
+</body>
+</html>
